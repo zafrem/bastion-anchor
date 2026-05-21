@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+  anchor:
+    build: .
+    image: bastion/anchor:dev
+    ports:
+      - "8080:8080"   # REST
+      - "9090:9090"   # gRPC
+      - "9091:9091"   # Prometheus metrics
+    volumes:
+      - ./config:/etc/anchor
+    environment:
+      - ANCHOR_LOG_LEVEL=info
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/v1/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222"   # monitoring HTTP
+    command: ["--http_port", "8222", "--js"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # Optional: Prometheus for local metrics scraping.
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    ports:
+      - "9092:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    profiles:
+      - monitoring
+    restart: unless-stopped

@@ -1,0 +1,247 @@
+syntax = "proto3";
+
+package bastion.anchor.v1;
+
+option go_package = "github.com/bastion/anchor/gen/anchor/v1;anchorv1";
+
+service AnchorService {
+  rpc SecureEmbedding(SecureRequest)          returns (SecureResponse);
+  rpc SecureBatch(BatchSecureRequest)         returns (BatchSecureResponse);
+  rpc MeasureBias(BiasRequest)                returns (BiasResponse);
+  rpc MeasureQuality(QualityRequest)          returns (QualityResponse);
+  rpc GetConfig(ConfigRequest)                returns (AnchorConfig);
+  rpc UpdateConfig(AnchorConfig)              returns (AnchorConfig);
+  rpc Health(HealthRequest)                   returns (HealthResponse);
+
+  // Phase 2: Output verification (Anchor-OUT)
+  rpc VerifyResponse(VerifyRequest)                       returns (VerifyResponse);
+  rpc AnalyzeResponseEmbedding(EmbeddingAnalysisRequest)  returns (EmbeddingAnalysisResponse);
+  rpc CheckDrift(DriftRequest)                            returns (DriftResponse);
+}
+
+message SecureRequest {
+  string          request_id = 1;
+  string          tenant_id  = 2;
+  repeated float  embedding  = 3;
+  string          operation  = 4;   // "index" | "search"
+  string          category   = 5;
+  SecurityOptions options    = 6;
+}
+
+message SecurityOptions {
+  float noise_sigma   = 1;
+  bool  measure_bias  = 2;
+  bool  preserve_norm = 3;
+  int32 timeout_ms    = 4;
+  int64 seed          = 5;
+}
+
+message SecureResponse {
+  string         request_id         = 1;
+  repeated float secured_embedding  = 2;
+  EmbedMetrics   metrics            = 3;
+  float          processing_time_ms = 4;
+}
+
+message EmbedMetrics {
+  float  noise_added            = 1;
+  float  similarity_to_original = 2;
+  float  bias_score             = 3;
+  string strategy_used          = 4;
+  float  original_norm          = 5;
+  float  secured_norm           = 6;
+}
+
+message BatchSecureRequest {
+  string                request_id = 1;
+  repeated SecureRequest items     = 2;
+}
+
+message BatchSecureResponse {
+  string                 request_id = 1;
+  repeated SecureResponse items     = 2;
+}
+
+message AttributePair {
+  string attribute_a = 1;
+  string attribute_b = 2;
+  string category    = 3;
+}
+
+message BiasRequest {
+  string                  tenant_id        = 1;
+  repeated string         test_words       = 2;
+  repeated AttributePair  attribute_pairs  = 3;
+}
+
+message BiasMeasurement {
+  string word       = 1;
+  string category   = 2;
+  float  bias_score = 3;
+  float  sim_a      = 4;
+  float  sim_b      = 5;
+  string severity   = 6;
+}
+
+message BiasResponse {
+  repeated BiasMeasurement measurements      = 1;
+  float                    overall_bias_score = 2;
+  string                   interpretation     = 3;
+}
+
+message EmbeddingPair {
+  repeated float query_embedding = 1;
+  repeated float match_embedding = 2;
+}
+
+message QualityRequest {
+  string                 tenant_id        = 1;
+  float                  noise_sigma      = 2;
+  repeated EmbeddingPair embedding_pairs  = 3;
+  int32                  top_k            = 4;
+}
+
+message QualityResponse {
+  float  noise_sigma                = 1;
+  float  recall_without             = 2;
+  float  recall_with                = 3;
+  float  recall_drop_percent        = 4;
+  float  avg_similarity_to_original = 5;
+  string status                     = 6;
+}
+
+message AnchorConfig {
+  float               default_noise_sigma = 1;
+  bool                preserve_norm       = 2;
+  string              strategy            = 3;
+  map<string, float>  tenant_overrides    = 4;
+  bool                bias_enabled        = 5;
+  bool                quality_enabled     = 6;
+}
+
+message ConfigRequest  {}
+message HealthRequest  {}
+
+message HealthResponse {
+  string              status  = 1;
+  map<string, string> checks  = 2;
+  string              version = 3;
+}
+
+// ─── Phase 2: Output verification (Anchor-OUT) ───────────────────────────────
+
+message UserContext {
+  string user_id    = 1;
+  string tenant_id  = 2;
+  string department = 3;
+  string category   = 4;
+}
+
+message CategoryBaseline {
+  string category    = 1;
+  float  score       = 2;
+  int64  measured_at = 3;
+}
+
+message BiasBaseline {
+  float                    overall_score = 1;
+  repeated CategoryBaseline categories   = 2;
+}
+
+message VerifyOptions {
+  bool  check_bias         = 1;
+  bool  analyze_embedding  = 2;
+  bool  check_drift        = 3;
+  bool  measure_quality    = 4;
+  float bias_threshold     = 5;
+  int32 timeout_ms         = 6;
+}
+
+message VerifyRequest {
+  string          request_id       = 1;
+  string          trace_id         = 2;
+  string          tenant_id        = 3;
+  string          llm_response     = 4;
+  string          original_query   = 5;
+  repeated string source_documents = 6;
+  UserContext     user             = 7;
+  BiasBaseline    phase1_baseline  = 8;
+  VerifyOptions   options          = 9;
+}
+
+message ResponseCategoryBias {
+  string          category = 1;
+  float           score    = 2;
+  repeated string evidence = 3;
+}
+
+message ResponseBiasAnalysis {
+  float                       overall_score      = 1;
+  repeated ResponseCategoryBias categories       = 2;
+  string                      severity           = 3;
+  bool                        exceeds_threshold  = 4;
+}
+
+message EmbeddingAnalysis {
+  float similarity_to_query     = 1;
+  float similarity_to_context   = 2;
+  float diversity_score         = 3;
+  bool  semantic_drift_detected = 4;
+}
+
+message DriftAnalysis {
+  bool   drift_detected    = 1;
+  float  phase1_bias_score = 2;
+  float  phase2_bias_score = 3;
+  float  drift_amount      = 4;
+  string drift_direction   = 5;
+}
+
+message ResponseQuality {
+  float grounding_score  = 1;
+  float coherence_score  = 2;
+  float relevance_score  = 3;
+  float overall_quality  = 4;
+}
+
+message VerifyResponse {
+  string                request_id         = 1;
+  string                status             = 2;
+  ResponseBiasAnalysis  bias_analysis      = 3;
+  EmbeddingAnalysis     embedding_analysis = 4;
+  DriftAnalysis         drift_analysis     = 5;
+  ResponseQuality       quality            = 6;
+  repeated string       warnings           = 7;
+  repeated string       recommendations    = 8;
+  float                 processing_time_ms = 9;
+}
+
+message EmbeddingAnalysisRequest {
+  string          text             = 1;
+  repeated string comparison_texts = 2;
+}
+
+message EmbeddingAnalysisResponse {
+  repeated float  embedding    = 1;
+  repeated double similarities = 2;
+  double          diversity    = 3;
+}
+
+message DriftRequest {
+  BiasBaseline         phase1 = 1;
+  ResponseBiasAnalysis phase2 = 2;
+}
+
+message CategoryDrift {
+  string category     = 1;
+  float  phase1_score = 2;
+  float  phase2_score = 3;
+  float  change       = 4;
+  string direction    = 5;
+}
+
+message DriftResponse {
+  bool                  drift_detected = 1;
+  repeated CategoryDrift drifts        = 2;
+  string                severity       = 3;
+}

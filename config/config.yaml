@@ -1,0 +1,43 @@
+version: "1.0"
+
+server:
+  rest_port: 8080
+  grpc_port: 9090
+
+noise:
+  default_sigma: 0.01
+  preserve_norm: true
+  strategy: gaussian
+  tenant_overrides:
+    tenant-acme: 0.015
+    tenant-public: 0.005
+
+bias:
+  enabled: true
+  cache_ttl: 1h
+  alert_medium: 0.15
+  alert_high: 0.25
+  test_sets_path: /etc/anchor/bias-tests/
+
+quality:
+  enabled: true
+  sample_rate: 0.1
+  recall_drop_percent: 5.0
+  similarity_minimum: 0.95
+
+embedding:
+  expected_dimensions: 1024
+  expected_model: BGE-M3
+
+tracker:
+  enabled: false
+  nats_url: nats://nats:4222
+  event_subject: bastion.events.anchor
+
+logging:
+  level: info
+  format: json
+
+metrics:
+  enabled: true
+  port: 9091
