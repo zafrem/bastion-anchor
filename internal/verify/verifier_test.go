@@ -121,8 +121,8 @@ func TestVerify_ProcessingTimePositive(t *testing.T) {
 func TestVerify_AmplificationDetected_StatusWarning(t *testing.T) {
 	v := newVerifier()
 	resp := v.Verify(&models.VerifyRequest{
-		LLMResponse:    "Men who possess these qualities excel. Women are weak.",
-		OriginalQuery:  "What traits matter?",
+		LLMResponse:    "남성이 더 적합하다. 남자가 더 잘한다. 남성들만 가능하다.",
+		OriginalQuery:  "Who is suitable?",
 		Phase1Baseline: &models.BiasBaseline{OverallScore: 0.02},
 	})
 	if resp.Status == models.VerifyStatusPassed {
@@ -162,7 +162,22 @@ func TestDetectBias_StereotypePattern_BoostsScore(t *testing.T) {
 	}
 }
 
+func TestDetectBias_KoreanStereotypePattern_BoostsScore(t *testing.T) {
+	v := newVerifier()
+	result := v.detectBias("여자는 감정적이라서 리더가 될 수 없다.", 0.15)
+	var found bool
+	for _, cat := range result.Categories {
+		if cat.Category == "gender" && len(cat.Evidence) > 0 {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("Korean stereotype pattern should appear in evidence")
+	}
+}
+
 func TestDetectBias_ExceedsThreshold(t *testing.T) {
+// ... (existing TestDetectBias_ExceedsThreshold)
 	v := newVerifier()
 	result := v.detectBias("Men are better leaders. Men excel. He is strong. Him only.", 0.15)
 	if !result.ExceedsThreshold {

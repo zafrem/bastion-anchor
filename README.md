@@ -1,27 +1,34 @@
 # Bastion-Anchor (Module E)
 
 ## Overview
-**Bastion-Anchor** protects the embedding layer of the RAG pipeline. It ensures that numerical representations (vectors) are resistant to privacy attacks and free from systematic bias.
+**Bastion-Anchor** protects the embedding layer and ensures output integrity in the RAG pipeline. It ensures that numerical representations (vectors) are resistant to privacy attacks, free from systematic bias, and that LLM responses remain grounded and fair.
 
 ## Symmetric Security Modes
 Anchor applies security at both ends of the embedding lifecycle:
 
-### Mode 1: Indexing Time (Write Path)
-When documents are being added to the knowledge base:
-- **Noise Injection:** Gaussian noise is added to document embeddings before storage.
-- **Protection:** Prevents attackers from reconstructing original text from the vector database.
+### Phase 1: Input Security (Anchor-IN)
+When documents are being indexed or queries are being searched:
+- **Noise Injection:** Gaussian or Laplacian noise is added to embeddings.
+- **Privacy Protection:** Prevents reconstruction of original text from vector representations.
+- **Bias Measurement:** Uses WEAT (Word Embedding Association Test) to detect model bias.
 
-### Mode 2: Search Time (Read Path)
-When a user query is being processed:
-- **Query Perturbation:** Applies symmetric noise to the query embedding.
-- **Integrity:** Maintains search compatibility while ensuring query privacy.
+### Phase 2: Output Security (Anchor-OUT)
+When the LLM generates a response:
+- **Response Verification:** Analyzes response text for bias and stereotypes.
+- **Semantic Drift:** Detects if the response has drifted from the query or source context.
+- **Grounding & Quality:** Verifies the response is grounded in the retrieved documents.
 
 ## Key Features
-- **Gaussian Noise Injection:** Configurable $\sigma$ for privacy/quality trade-off.
-- **Norm Preservation:** Re-normalizes vectors to L2 norm = 1.0.
-- **Bias Measurement (WEAT):** Detects gender, ethnic, or age bias in the embedding model.
-- **Quality Benchmarking:** Monitors recall@K degradation.
+- **Configurable Noise Injection:** Supports Gaussian and Laplacian strategies with per-tenant overrides.
+- **Norm Preservation:** Maintains vector unit length for compatibility with cosine similarity.
+- **Bidirectional Bias Analysis:** Measures bias in both input embeddings and output response text.
+- **Quality Monitoring:** Tracks recall@K preservation and end-to-end response quality.
 
 ## Documentation
 - [Design Document](DESIGN.md)
-- [SRS Document](bastion_anchor_srs_v1.0_en.md)
+- [Main SRS (Input Phase)](docs/bastion_anchor_srs_v1.0_en.md)
+- [Output SRS (Output Phase)](docs/bastion_anchor_output_srs_v1.0_en.md)
+- [Technical Guide](docs/TECHNICAL_GUIDE.md)
+
+## Integration
+Anchor follows the Bastion standard gRPC and REST patterns, typically sitting between Module C (Navigator) and the LLM, and feeding metrics to Module D (Tracker).

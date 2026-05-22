@@ -147,8 +147,9 @@ func TestBiasAmplificationDetected_SeverityCritical(t *testing.T) {
 func TestBiasAmplificationDetected_DriftAmount(t *testing.T) {
 	e := BiasAmplificationDetected("t", 0.05, 0.28)
 	want := 0.28 - 0.05
-	if e.Data["drift_amount"] != want {
-		t.Errorf("drift_amount: want %.4f, got %v", want, e.Data["drift_amount"])
+	got := e.Data["drift_amount"].(float64)
+	if abs(got-want) > 1e-9 {
+		t.Errorf("drift_amount: want %.4f, got %v", want, got)
 	}
 }
 

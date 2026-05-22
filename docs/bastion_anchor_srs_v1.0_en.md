@@ -21,18 +21,25 @@ This SRS is **intentionally simplified** for PoC purposes, focusing on demonstra
 ### 1.2 Scope
 
 **In Scope (PoC Implementation):**
-- Gaussian noise injection into embeddings
-- Configurable noise intensity
-- Basic bias measurement
-- Static bias checks at indexing time
-- Search quality measurement (recall preservation)
-- Standalone execution and testing
-- API-based integration (gRPC, REST)
-- CLI for manual testing and demonstration
-- Visualization of security operations for Tracker
+- **Phase 1: Input Embedding Security**
+  - Gaussian and Laplacian noise injection into embeddings
+  - Configurable noise intensity
+  - Basic bias measurement (WEAT)
+  - Static bias checks at indexing time
+  - Search quality measurement (recall preservation)
+- **Phase 2: Output Response Security** ⭐
+  - Response text bias detection
+  - Semantic drift analysis
+  - Quality verification (Grounding, Coherence, Relevance)
+  - (See [Output SRS](bastion_anchor_output_srs_v1.0_en.md) for details)
+- **General**
+  - Standalone execution and testing
+  - API-based integration (gRPC, REST)
+  - CLI for manual testing and demonstration
+  - Visualization of security operations for Tracker
 
 **Out of Scope (Future Versions):**
-- Differential Privacy with formal mathematical guarantees
+- Differential Privacy with formal mathematical guarantees (ε-DP)
 - Advanced embedding inversion defense
 - Dynamic bias monitoring during retrieval
 - Embedding integrity (HMAC signatures)
@@ -234,81 +241,25 @@ syntax = "proto3";
 package bastion.anchor.v1;
 
 service AnchorService {
-  // Apply security to single embedding
-  rpc SecureEmbedding(SecureRequest) returns (SecureResponse);
-  
-  // Apply security to batch
-  rpc SecureBatch(BatchSecureRequest) returns (BatchSecureResponse);
-  
-  // Measure bias
-  rpc MeasureBias(BiasRequest) returns (BiasResponse);
-  
-  // Measure quality impact
-  rpc MeasureQuality(QualityRequest) returns (QualityResponse);
-  
-  // Configuration
-  rpc GetConfig(ConfigRequest) returns (ConfigResponse);
-  rpc UpdateConfig(ConfigUpdateRequest) returns (ConfigResponse);
-  
-  // Health
-  rpc Health(HealthRequest) returns (HealthResponse);
+  // Phase 1: Embedding Security (Anchor-IN)
+  rpc SecureEmbedding(SecureRequest)          returns (SecureResponse);
+  rpc SecureBatch(BatchSecureRequest)         returns (BatchSecureResponse);
+  rpc MeasureBias(BiasRequest)                returns (BiasResponse);
+  rpc MeasureQuality(QualityRequest)          returns (QualityResponse);
+
+  // Phase 2: Output Verification (Anchor-OUT)
+  rpc VerifyResponse(VerifyRequest)           returns (VerifyResponse);
+  rpc CheckDrift(DriftRequest)                returns (DriftResponse);
+
+  // Configuration & Health
+  rpc GetConfig(ConfigRequest)                returns (AnchorConfig);
+  rpc UpdateConfig(AnchorConfig)              returns (AnchorConfig);
+  rpc Health(HealthRequest)                   returns (HealthResponse);
 }
 
-message SecureRequest {
-  string request_id = 1;
-  string tenant_id = 2;
-  repeated float embedding = 3;        // Input embedding
-  string operation = 4;                 // "index" or "search"
-  string category = 5;                  // Data category
-  SecurityOptions options = 6;
-}
-
-message SecurityOptions {
-  float noise_sigma = 1;                // Override default noise
-  bool measure_bias = 2;
-  bool preserve_norm = 3;
-  int32 timeout_ms = 4;
-}
-
-message SecureResponse {
-  string request_id = 1;
-  repeated float secured_embedding = 2; // Output embedding
-  Metrics metrics = 3;
-  float processing_time_ms = 4;
-}
-
-message Metrics {
-  float noise_added = 1;                // Actual noise magnitude
-  float similarity_to_original = 2;     // Cosine similarity
-  float bias_score = 3;                 // If measured
-  string strategy_used = 4;
-}
-
-message BiasRequest {
-  string tenant_id = 1;
-  repeated string test_words = 2;
-  repeated AttributePair attribute_pairs = 3;
-}
-
-message AttributePair {
-  string attribute_a = 1;
-  string attribute_b = 2;
-  string category = 3;                  // "gender", "ethnicity", etc.
-}
-
-message BiasResponse {
-  repeated BiasMeasurement measurements = 1;
-  float overall_bias_score = 2;
-  string interpretation = 3;
-}
-
-message BiasMeasurement {
-  string word = 1;
-  string category = 2;
-  float bias_score = 3;
-  string severity = 4;                  // "low", "medium", "high"
-}
+// ... message definitions follow (see proto/anchor/v1/anchor.proto)
 ```
+
 
 ### 3.3 Input Interface 2: REST API
 
@@ -550,9 +501,13 @@ Secured:  [0.45, -0.28, 0.80, ..., 0.54]
 - Relaxed for public data
 
 **FR-NI-005: Noise Strategy Selection**
-- Default: Gaussian
-- Optional: Laplacian (for future DP integration)
-- Configurable via API
+- **Gaussian** (default): Normal distribution noise.
+- **Laplacian**: Laplacian distribution noise (implemented for differential privacy readiness).
+- Configurable via API or configuration file.
+
+### 4.6 Phase 2 Requirements (FR-P2)
+
+See [Output SRS (bastion_anchor_output_srs_v1.0_en.md)](bastion_anchor_output_srs_v1.0_en.md) for detailed functional requirements regarding response bias detection, drift analysis, and quality verification.
 
 ### 4.2 Bias Measurement (FR-BM)
 
@@ -1025,7 +980,7 @@ server:
 noise:
   default_sigma: 0.01
   preserve_norm: true
-  strategy: gaussian   # gaussian, laplacian (future)
+  strategy: gaussian   # gaussian, laplacian
   
   # Per-tenant override
   tenant_overrides:

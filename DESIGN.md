@@ -11,6 +11,8 @@
 - **Auditability:** Report security events and metrics to Module D (Tracker).
 - **Verification:** (Phase 2) Verify LLM responses for bias, grounding, and semantic drift.
 
+For implementation details and algorithms, see the [Technical Guide](docs/TECHNICAL_GUIDE.md).
+
 ---
 
 ## 2. Architecture

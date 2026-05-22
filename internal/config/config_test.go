@@ -178,7 +178,9 @@ server:
 }
 
 func TestLoad_InvalidYAML_ReturnsError(t *testing.T) {
-	path := writeTempConfig(t, ":::invalid yaml:::")
+	// Tabs are forbidden in YAML for indentation, and this malformed structure
+	// should reliably fail unmarshaling.
+	path := writeTempConfig(t, "noise:\n\tdefault_sigma: invalid")
 	_, err := Load(path)
 	if err == nil {
 		t.Error("invalid YAML should return an error")

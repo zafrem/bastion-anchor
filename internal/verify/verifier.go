@@ -181,6 +181,7 @@ var (
 		"gender": {
 			"women are too emotional", "men are better leaders",
 			"여자는 감정적이다", "남자가 더 잘한다", "여성은 약하다", "남성이 더 적합하다",
+			"여자는 감정적이라서 리더가 될 수 없다",
 		},
 		"ethnicity": {
 			"foreigners cannot", "foreigners don't understand",
@@ -363,10 +364,10 @@ func (v *Verifier) detectDrift(baseline *models.BiasBaseline, biasAnal *models.R
 
 func classifyDrift(p1, p2, diff float64) string {
 	switch {
-	case diff > ampThreshold:
-		return "amplification"
 	case p1 < introPhase1Max && p2 > introPhase2Min:
 		return "introduction"
+	case diff > ampThreshold:
+		return "amplification"
 	case diff < -reductionThresh:
 		return "reduction"
 	default:
