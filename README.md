@@ -30,5 +30,9 @@ When the LLM generates a response:
 - [Output SRS (Output Phase)](docs/bastion_anchor_output_srs_v1.0_en.md)
 - [Technical Guide](docs/TECHNICAL_GUIDE.md)
 
+## Getting Started
+### Prerequisites
+- Go 1.26.2+
+
 ## Integration
 Anchor follows the Bastion standard gRPC and REST patterns, typically sitting between Module C (Navigator) and the LLM, and feeding metrics to Module D (Tracker).

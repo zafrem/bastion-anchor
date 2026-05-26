@@ -131,13 +131,31 @@ type ErrorResponse struct {
 	TraceID string `json:"trace_id,omitempty"`
 }
 
-// TrackerEvent is an event sent to Module D (Tracker) via NATS.
-type TrackerEvent struct {
-	EventType string                 `json:"event_type"`
-	Module    string                 `json:"module"`
-	Severity  string                 `json:"severity"`
-	Data      map[string]interface{} `json:"data"`
+// BastionEvent is the Foundation-standard event emitted to NATS (doc 02).
+// Subject: bastion.events.anchor.{event_type}
+type BastionEvent struct {
+	EventID       string                 `json:"event_id"`        // UUID
+	EventType     string                 `json:"event_type"`
+	SchemaVersion string                 `json:"schema_version"`
+	TraceID       string                 `json:"trace_id"`
+	SpanID        string                 `json:"span_id"`
+	ParentSpanID  string                 `json:"parent_span_id,omitempty"`
+	Module        string                 `json:"module"`
+	ModuleVersion string                 `json:"module_version"`
+	Timestamp     int64                  `json:"timestamp"`       // Unix nano
+	DurationMs    int64                  `json:"duration_ms,omitempty"`
+	TenantID      string                 `json:"tenant_id"`
+	UserID        string                 `json:"user_id,omitempty"`
+	RequestID     string                 `json:"request_id,omitempty"`
+	Severity      string                 `json:"severity"`        // info, warning, error, critical
+	Category      string                 `json:"category"`        // operational, security, performance, audit
+	Data          map[string]interface{} `json:"data,omitempty"`
+	Status        string                 `json:"status,omitempty"`
+	ActionTaken   string                 `json:"action_taken,omitempty"`
 }
+
+// TrackerEvent is kept for backwards compatibility; prefer BastionEvent.
+type TrackerEvent = BastionEvent
 
 // gRPC empty request types
 type ConfigRequest struct{}

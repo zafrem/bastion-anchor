@@ -10,6 +10,7 @@ import (
 
 	"github.com/bastion/anchor/internal/bias"
 	"github.com/bastion/anchor/internal/config"
+	"github.com/bastion/anchor/internal/hooks"
 	"github.com/bastion/anchor/internal/models"
 	"github.com/bastion/anchor/internal/noise"
 	"github.com/bastion/anchor/internal/publisher"
@@ -33,8 +34,9 @@ func newRouter(t *testing.T) http.Handler {
 		mon: quality.New(cfg.Quality.RecallDropAlert, cfg.Quality.SimilarityMinimum),
 		pub: publisher.NewNoop(),
 		ver: verify.New(cfg.Bias.AlertMedium, cfg.Bias.AlertHigh),
+		hm:  hooks.New(),
 	}
-	s := &Server{}
+	s := &Server{hm: hooks.New()}
 	return s.routes(h)
 }
 

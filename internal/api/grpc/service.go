@@ -24,6 +24,8 @@ type AnchorServiceServer interface {
 	Health(context.Context, *models.HealthRequest) (*models.HealthStatus, error)
 	// Phase 2
 	VerifyResponse(context.Context, *models.VerifyRequest) (*models.VerifyResponse, error)
+	// AnalyzeResponse is the SRS-specified alias for VerifyResponse (doc 13 §6.1)
+	AnalyzeResponse(context.Context, *models.VerifyRequest) (*models.VerifyResponse, error)
 	AnalyzeResponseEmbedding(context.Context, *models.EmbeddingAnalysisRequest) (*models.EmbeddingAnalysisResponse, error)
 	CheckDrift(context.Context, *models.DriftRequest) (*models.DriftResponse, error)
 }
@@ -55,6 +57,9 @@ func (UnimplementedAnchorServiceServer) Health(_ context.Context, _ *models.Heal
 func (UnimplementedAnchorServiceServer) VerifyResponse(_ context.Context, _ *models.VerifyRequest) (*models.VerifyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "VerifyResponse not implemented")
 }
+func (UnimplementedAnchorServiceServer) AnalyzeResponse(_ context.Context, _ *models.VerifyRequest) (*models.VerifyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "AnalyzeResponse not implemented")
+}
 func (UnimplementedAnchorServiceServer) AnalyzeResponseEmbedding(_ context.Context, _ *models.EmbeddingAnalysisRequest) (*models.EmbeddingAnalysisResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "AnalyzeResponseEmbedding not implemented")
 }
@@ -79,6 +84,7 @@ var anchorServiceDesc = grpc.ServiceDesc{
 		{MethodName: "UpdateConfig", Handler: _UpdateConfig_Handler},
 		{MethodName: "Health", Handler: _Health_Handler},
 		{MethodName: "VerifyResponse", Handler: _VerifyResponse_Handler},
+		{MethodName: "AnalyzeResponse", Handler: _AnalyzeResponse_Handler},
 		{MethodName: "AnalyzeResponseEmbedding", Handler: _AnalyzeResponseEmbedding_Handler},
 		{MethodName: "CheckDrift", Handler: _CheckDrift_Handler},
 	},
@@ -195,6 +201,20 @@ func _VerifyResponse_Handler(srv interface{}, ctx context.Context, dec func(inte
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/bastion.anchor.v1.AnchorService/VerifyResponse"}
 	return interceptor(ctx, in, info, func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AnchorServiceServer).VerifyResponse(ctx, req.(*models.VerifyRequest))
+	})
+}
+
+func _AnalyzeResponse_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(models.VerifyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AnchorServiceServer).AnalyzeResponse(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/bastion.anchor.v1.AnchorService/AnalyzeResponse"}
+	return interceptor(ctx, in, info, func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AnchorServiceServer).AnalyzeResponse(ctx, req.(*models.VerifyRequest))
 	})
 }
 

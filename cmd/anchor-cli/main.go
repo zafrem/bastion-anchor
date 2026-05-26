@@ -79,7 +79,7 @@ func runServer(restPort, grpcPort int) error {
 
 	var pub publisher.Publisher
 	if cfg.Tracker.Enabled && cfg.Tracker.NATSUrl != "" {
-		natsPub, err := publisher.NewNATS(cfg.Tracker.NATSUrl, cfg.Tracker.EventSubject)
+		natsPub, err := publisher.NewNATSWithSubject(cfg.Tracker.NATSUrl, cfg.Tracker.EventSubject)
 		if err != nil {
 			log.Printf("NATS unavailable (%v), using log publisher", err)
 			pub = publisher.NewLog()

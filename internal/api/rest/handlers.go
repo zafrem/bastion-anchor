@@ -5,8 +5,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/bastion/anchor/internal/bias"
 	"github.com/bastion/anchor/internal/config"
+	"github.com/bastion/anchor/internal/hooks"
 	"github.com/bastion/anchor/internal/metrics"
 	"github.com/bastion/anchor/internal/models"
 	"github.com/bastion/anchor/internal/noise"
@@ -22,6 +25,7 @@ type handlers struct {
 	mon *quality.Monitor
 	pub publisher.Publisher
 	ver *verify.Verifier
+	hm  *hooks.Manager
 }
 
 // ─── Health ───────────────────────────────────────────────────────────────────
@@ -66,7 +70,21 @@ func (h *handlers) Secure(w http.ResponseWriter, r *http.Request) {
 	metrics.NoiseMagnitude.Observe(result.NoiseMagnitude)
 	metrics.SimilarityToOriginal.Observe(result.SimilarityToOriginal)
 
-	go h.pub.Publish(publisher.EmbeddingSecured(req.TenantID, req.Operation, result.NoiseMagnitude, result.SimilarityToOriginal))
+	tc := traceFrom(r, req.TenantID, "", req.RequestID)
+	go h.pub.Publish(publisher.EmbeddingSecured(tc, req.Operation, result.NoiseMagnitude, result.SimilarityToOriginal))
+	h.hm.Fire(hooks.Event{
+		Type:      hooks.EventEmbeddingSecured,
+		RequestID: req.RequestID,
+		TenantID:  req.TenantID,
+		TraceID:   tc.TraceID,
+		SpanID:    tc.SpanID,
+		Data: map[string]interface{}{
+			"noise":      result.NoiseMagnitude,
+			"similarity": result.SimilarityToOriginal,
+			"operation":  req.Operation,
+		},
+		Ctx: r.Context(),
+	})
 
 	writeJSON(w, http.StatusOK, models.SecureResponse{
 		RequestID:        req.RequestID,
@@ -135,9 +153,22 @@ func (h *handlers) MeasureBias(w http.ResponseWriter, r *http.Request) {
 			categoryTerms[m.Category] = append(categoryTerms[m.Category], m.Word)
 		}
 	}
+	tc := traceFrom(r, req.TenantID, "", "")
 	for cat, terms := range categoryTerms {
 		metrics.AlertsTotal.WithLabelValues("bias_detected").Inc()
-		go h.pub.Publish(publisher.BiasDetected(cat, resp.OverallBiasScore, terms))
+		go h.pub.Publish(publisher.BiasDetected(tc, cat, resp.OverallBiasScore, terms))
+		h.hm.Fire(hooks.Event{
+			Type:     hooks.EventBiasDetected,
+			TenantID: req.TenantID,
+			TraceID:  tc.TraceID,
+			SpanID:   tc.SpanID,
+			Data: map[string]interface{}{
+				"category":   cat,
+				"bias_score": resp.OverallBiasScore,
+				"terms":      terms,
+			},
+			Ctx: r.Context(),
+		})
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -161,8 +192,9 @@ func (h *handlers) MeasureQuality(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if resp.Status != "acceptable" {
+		tc := traceFrom(r, req.TenantID, "", "")
 		metrics.AlertsTotal.WithLabelValues("quality_degraded").Inc()
-		go h.pub.Publish(publisher.QualityDegraded(resp.RecallWithout, resp.RecallWith, req.NoiseSigma))
+		go h.pub.Publish(publisher.QualityDegraded(tc, resp.RecallWithout, resp.RecallWith, req.NoiseSigma))
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -187,10 +219,12 @@ func (h *handlers) Verify(w http.ResponseWriter, r *http.Request) {
 	metrics.VerificationsTotal.WithLabelValues(string(resp.Status)).Inc()
 	metrics.VerifyDuration.Observe(elapsed)
 
+	tc := traceFrom(r, req.TenantID, "", req.RequestID)
+
 	if resp.BiasAnalysis != nil && resp.BiasAnalysis.ExceedsThreshold {
 		metrics.BiasDetectedTotal.WithLabelValues(resp.BiasAnalysis.Severity).Inc()
 		metrics.AlertsTotal.WithLabelValues("response_bias_detected").Inc()
-		go h.pub.Publish(publisher.BiasDetectedResponse(req.TenantID, "response", resp.BiasAnalysis.Severity, resp.BiasAnalysis.OverallScore))
+		go h.pub.Publish(publisher.BiasDetectedResponse(tc, "response", resp.BiasAnalysis.Severity, resp.BiasAnalysis.OverallScore))
 	}
 
 	if resp.DriftAnalysis != nil && resp.DriftAnalysis.DriftDetected {
@@ -198,26 +232,39 @@ func (h *handlers) Verify(w http.ResponseWriter, r *http.Request) {
 		switch resp.DriftAnalysis.DriftDirection {
 		case "amplification":
 			metrics.AlertsTotal.WithLabelValues("bias_amplification").Inc()
-			go h.pub.Publish(publisher.BiasAmplificationDetected(req.TenantID, resp.DriftAnalysis.Phase1BiasScore, resp.DriftAnalysis.Phase2BiasScore))
+			go h.pub.Publish(publisher.BiasAmplificationDetected(tc, resp.DriftAnalysis.Phase1BiasScore, resp.DriftAnalysis.Phase2BiasScore))
 		case "introduction":
 			metrics.AlertsTotal.WithLabelValues("bias_introduction").Inc()
-			go h.pub.Publish(publisher.BiasIntroductionDetected(req.TenantID, resp.DriftAnalysis.Phase1BiasScore, resp.DriftAnalysis.Phase2BiasScore))
+			go h.pub.Publish(publisher.BiasIntroductionDetected(tc, resp.DriftAnalysis.Phase1BiasScore, resp.DriftAnalysis.Phase2BiasScore))
 		case "reduction":
-			go h.pub.Publish(publisher.BiasReductionDetected(req.TenantID, resp.DriftAnalysis.Phase1BiasScore, resp.DriftAnalysis.Phase2BiasScore))
+			go h.pub.Publish(publisher.BiasReductionDetected(tc, resp.DriftAnalysis.Phase1BiasScore, resp.DriftAnalysis.Phase2BiasScore))
 		}
 	}
 
 	if resp.EmbeddingAnalysis != nil && resp.EmbeddingAnalysis.SemanticDriftDetected {
 		metrics.AlertsTotal.WithLabelValues("semantic_drift").Inc()
-		go h.pub.Publish(publisher.SemanticDriftDetected(req.TenantID, resp.EmbeddingAnalysis.SimilarityToContext))
+		go h.pub.Publish(publisher.SemanticDriftDetected(tc, resp.EmbeddingAnalysis.SimilarityToContext))
+		go h.pub.Publish(publisher.AnomalyDetected(tc, "semantic_drift", resp.EmbeddingAnalysis.SimilarityToContext))
+		h.hm.Fire(hooks.Event{
+			Type:      hooks.EventAnomalyDetected,
+			RequestID: req.RequestID,
+			TenantID:  req.TenantID,
+			TraceID:   tc.TraceID,
+			SpanID:    tc.SpanID,
+			Data: map[string]interface{}{
+				"anomaly_type": "semantic_drift",
+				"score":        resp.EmbeddingAnalysis.SimilarityToContext,
+			},
+			Ctx: r.Context(),
+		})
 	}
 
 	if resp.Quality != nil && resp.Quality.OverallQuality < 0.5 {
 		metrics.AlertsTotal.WithLabelValues("quality_low").Inc()
-		go h.pub.Publish(publisher.QualityLow(req.TenantID, resp.Quality.OverallQuality))
+		go h.pub.Publish(publisher.QualityLow(tc, resp.Quality.OverallQuality))
 	}
 
-	go h.pub.Publish(publisher.ResponseVerified(req.TenantID, string(resp.Status), func() float64 {
+	go h.pub.Publish(publisher.ResponseVerified(tc, string(resp.Status), func() float64 {
 		if resp.BiasAnalysis != nil {
 			return resp.BiasAnalysis.OverallScore
 		}
@@ -276,6 +323,29 @@ func (h *handlers) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
+
+// traceFrom extracts Foundation trace context from request headers + body fields.
+func traceFrom(r *http.Request, tenantID, userID, requestID string) publisher.TraceContext {
+	traceID := r.Header.Get("X-Trace-ID")
+	if traceID == "" {
+		traceID = r.Header.Get("traceparent") // W3C trace context header
+	}
+	if traceID == "" {
+		traceID = uuid.New().String()
+	}
+	spanID := r.Header.Get("X-Span-ID")
+	if spanID == "" {
+		spanID = uuid.New().String()[:16]
+	}
+	return publisher.TraceContext{
+		TraceID:      traceID,
+		SpanID:       spanID,
+		ParentSpanID: r.Header.Get("X-Parent-Span-ID"),
+		TenantID:     tenantID,
+		UserID:       userID,
+		RequestID:    requestID,
+	}
+}
 
 // injectorFor returns the default injector or a per-request override.
 func (h *handlers) injectorFor(tenantID string, opts *models.SecurityOptions) *noise.Injector {

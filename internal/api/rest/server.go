@@ -13,6 +13,7 @@ import (
 
 	"github.com/bastion/anchor/internal/bias"
 	"github.com/bastion/anchor/internal/config"
+	"github.com/bastion/anchor/internal/hooks"
 	"github.com/bastion/anchor/internal/noise"
 	"github.com/bastion/anchor/internal/publisher"
 	"github.com/bastion/anchor/internal/quality"
@@ -23,7 +24,11 @@ import (
 type Server struct {
 	httpServer *http.Server
 	port       int
+	hm         *hooks.Manager
 }
+
+// Hooks returns the HookManager so external coordinators can register listeners.
+func (s *Server) Hooks() *hooks.Manager { return s.hm }
 
 func New(
 	cfg *config.Config,
@@ -34,8 +39,9 @@ func New(
 	ver *verify.Verifier,
 	port int,
 ) *Server {
-	h := &handlers{cfg: cfg, inj: inj, ana: ana, mon: mon, pub: pub, ver: ver}
-	s := &Server{port: port}
+	hm := hooks.New()
+	h := &handlers{cfg: cfg, inj: inj, ana: ana, mon: mon, pub: pub, ver: ver, hm: hm}
+	s := &Server{port: port, hm: hm}
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      s.routes(h),
@@ -68,6 +74,7 @@ func (s *Server) routes(h *handlers) http.Handler {
 
 	// Phase 2: Output verification
 	r.Post("/v1/anchor/verify", h.Verify)
+	r.Post("/v1/anchor/analyze", h.Verify) // SRS alias: POST /v1/anchor/analyze → Verify
 	r.Post("/v1/anchor/analyze-embedding", h.AnalyzeEmbedding)
 	r.Post("/v1/anchor/check-drift", h.CheckDrift)
 
