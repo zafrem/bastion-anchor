@@ -13,7 +13,7 @@ from typing import Any, Optional
 log = logging.getLogger(__name__)
 
 _MODULE = "anchor"
-_MODULE_VERSION = "2.0.0"
+_MODULE_VERSION = "3.0.0"
 _SCHEMA_VER = "1.0"
 _SUBJECT_PFX = "bastion.events.anchor"
 

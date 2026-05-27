@@ -1,41 +1,40 @@
-.PHONY: all build test lint generate clean docker run-standalone demo
+.PHONY: all install test lint format clean docker docker-up docker-down run dev
 
-BINARY := anchor-cli
-CMD     := ./cmd/anchor-cli
+all: install
 
-all: build
+install:
+	pip install -e .
 
-build:
-	go build -ldflags="-s -w" -o bin/$(BINARY) $(CMD)
+install-dev:
+	pip install -e ".[dev]"
 
 test:
-	go test ./... -race -timeout 60s
+	pytest tests/ -v --timeout=60
 
 lint:
-	golangci-lint run ./...
+	ruff check anchor/ tests/
 
-generate:
-	@which buf > /dev/null 2>&1 && buf generate || \
-	 protoc --go_out=. --go_opt=paths=source_relative \
-	        --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-	        proto/anchor/v1/anchor.proto
+format:
+	ruff format anchor/ tests/
 
 clean:
-	rm -rf bin/ gen/
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	find . -name "*.pyc" -delete
+	rm -rf .pytest_cache dist *.egg-info
 
 docker:
 	docker build -t bastion/anchor:dev .
 
-run-standalone:
-	go run $(CMD) server --port 8080
+docker-up:
+	docker compose up -d
 
-demo:
-	go run $(CMD) demo
+docker-down:
+	docker compose down
 
-interactive:
-	go run $(CMD) interactive
+run:
+	python -m anchor.main --config config/config.yaml
 
-tidy:
-	go mod tidy
+dev:
+	python -m anchor.main --config config/config.yaml
 
-.DEFAULT_GOAL := build
+.DEFAULT_GOAL := install

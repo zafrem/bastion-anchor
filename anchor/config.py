@@ -36,7 +36,7 @@ class EventsConfig(BaseModel):
 
 
 class Config(BaseModel):
-    version: str = "2.0.0"
+    version: str = "3.0"
     server: ServerConfig = Field(default_factory=ServerConfig)
     noise: NoiseConfig = Field(default_factory=NoiseConfig)
     bias: BiasConfig = Field(default_factory=BiasConfig)
