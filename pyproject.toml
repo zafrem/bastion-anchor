@@ -26,3 +26,7 @@ anchor-cli = "anchor.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["anchor*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "strict"

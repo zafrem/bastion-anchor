@@ -8,10 +8,14 @@ from typing import Any, Callable
 
 log = logging.getLogger(__name__)
 
-EVENT_EMBEDDING_SECURED = "embedding_secured"
-EVENT_BIAS_DETECTED = "bias_detected"
-EVENT_RESPONSE_VERIFIED = "response_verified"
-EVENT_ANOMALY_DETECTED = "anomaly_detected"
+EVENT_EMBEDDING_SECURED   = "embedding_secured"
+EVENT_BIAS_DETECTED       = "bias_detected"
+EVENT_RESPONSE_VERIFIED   = "response_verified"
+EVENT_ANOMALY_DETECTED    = "anomaly_detected"
+EVENT_BATCH_SECURED       = "batch_secured"
+EVENT_QUALITY_ESTIMATED   = "quality_estimated"
+EVENT_EMBEDDING_ANALYZED  = "embedding_analyzed"
+EVENT_DRIFT_CHECKED       = "drift_checked"
 
 
 @dataclass

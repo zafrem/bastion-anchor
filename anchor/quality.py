@@ -15,7 +15,9 @@ class QualityMonitor:
     def estimate(self, sigma: float, pairs: list[EmbeddingPair]) -> QualityResponse:
         if not pairs:
             estimated = estimated_recall_preservation(sigma)
-            return self._build(sigma, 1.0, estimated, 1.0 - estimated)
+            # avg_sim estimate: same linear model as recall preservation
+            # (small sigma → near 1.0; large sigma → near 0.0)
+            return self._build(sigma, 1.0, estimated, estimated)
 
         inj = NoiseInjector(sigma, preserve_norm=True, seed=42)
         hits_without = hits_with = 0

@@ -117,6 +117,51 @@ def event_anomaly_detected(tc: TraceContext, anomaly_type: str, score: float) ->
     return ev
 
 
+def event_batch_secured(tc: TraceContext, item_count: int, avg_noise: float) -> AnchorEvent:
+    """Emitted after a batch of embeddings is noise-injected (SRS doc 22 lineage)."""
+    ev = _new_event(tc, "batch_secured", "info", "security", {
+        "item_count": item_count,
+        "avg_noise_magnitude": avg_noise,
+    })
+    ev.status = "secured"
+    ev.action_taken = "batch_noise_inject"
+    return ev
+
+
+def event_quality_estimated(tc: TraceContext, sigma: float, recall: float, status: str) -> AnchorEvent:
+    """Emitted after a quality/recall estimate is produced (SRS doc 22 lineage)."""
+    ev = _new_event(tc, "quality_estimated", "info", "operational", {
+        "noise_sigma": sigma,
+        "estimated_recall": recall,
+    })
+    ev.status = status
+    ev.action_taken = "quality_estimate"
+    return ev
+
+
+def event_embedding_analyzed(tc: TraceContext, context_sim: float, grounding: float) -> AnchorEvent:
+    """Emitted after an embedding analysis (context similarity, grounding) (SRS doc 22 lineage)."""
+    ev = _new_event(tc, "embedding_analyzed", "info", "security", {
+        "context_similarity": context_sim,
+        "grounding_score": grounding,
+    })
+    ev.status = "analyzed"
+    ev.action_taken = "embedding_analysis"
+    return ev
+
+
+def event_drift_checked(tc: TraceContext, drift_detected: bool, score: float) -> AnchorEvent:
+    """Emitted after a drift detection check (SRS doc 22 lineage)."""
+    sev = "warning" if drift_detected else "info"
+    ev = _new_event(tc, "drift_checked", sev, "security", {
+        "drift_detected": drift_detected,
+        "drift_score": score,
+    })
+    ev.status = "drift_detected" if drift_detected else "stable"
+    ev.action_taken = "drift_check"
+    return ev
+
+
 class Publisher:
     """Thread-safe async NATS publisher. Fire-and-forget; never blocks callers."""
 

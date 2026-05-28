@@ -14,8 +14,16 @@ from .noise import NoiseInjector
 from .bias import BiasAnalyzer
 from .quality import QualityMonitor
 from .verifier import Verifier
-from .events import Publisher, TraceContext, event_embedding_secured, event_bias_detected, event_response_verified, event_anomaly_detected
-from .hooks import HookManager, HookEvent, EVENT_EMBEDDING_SECURED, EVENT_BIAS_DETECTED, EVENT_RESPONSE_VERIFIED, EVENT_ANOMALY_DETECTED
+from .events import (
+    Publisher, TraceContext,
+    event_embedding_secured, event_bias_detected, event_response_verified, event_anomaly_detected,
+    event_batch_secured, event_quality_estimated, event_embedding_analyzed, event_drift_checked,
+)
+from .hooks import (
+    HookManager, HookEvent,
+    EVENT_EMBEDDING_SECURED, EVENT_BIAS_DETECTED, EVENT_RESPONSE_VERIFIED, EVENT_ANOMALY_DETECTED,
+    EVENT_BATCH_SECURED, EVENT_QUALITY_ESTIMATED, EVENT_EMBEDDING_ANALYZED, EVENT_DRIFT_CHECKED,
+)
 from .models import (
     AnchorConfig, BatchSecureRequest, BatchSecureResponse, BiasRequest, BiasResponse,
     DriftRequest, DriftResponse, EmbeddingAnalysisRequest, EmbeddingAnalysisResponse,
@@ -109,11 +117,14 @@ def build_app(cfg: Config, pub: Publisher, hm: HookManager) -> FastAPI:
         )
 
     @app.post("/v1/anchor/secure/batch", response_model=BatchSecureResponse)
-    def secure_batch(req: BatchSecureRequest):
+    def secure_batch(req: BatchSecureRequest, request: Request):
+        tc = _extract_tc(request, req)
         items = []
+        total_noise = 0.0
         for item in req.items:
             injector = _injector_for(item.tenant_id, item.options)
             result = injector.inject(item.embedding)
+            total_noise += result.noise_magnitude
             items.append(SecureResponse(
                 request_id=item.request_id,
                 secured_embedding=result.secured,
@@ -123,6 +134,13 @@ def build_app(cfg: Config, pub: Publisher, hm: HookManager) -> FastAPI:
                     strategy_used=result.strategy,
                 ),
             ))
+        avg_noise = total_noise / len(items) if items else 0.0
+        pub.publish(event_batch_secured(tc, len(items), avg_noise))
+        hm.fire(HookEvent(
+            type=EVENT_BATCH_SECURED, tenant_id=tc.tenant_id,
+            trace_id=tc.trace_id, span_id=tc.span_id, request_id=req.request_id,
+            data={"item_count": len(items), "avg_noise": avg_noise},
+        ))
         return BatchSecureResponse(request_id=req.request_id, items=items)
 
     @app.post("/v1/anchor/bias", response_model=BiasResponse)
@@ -142,9 +160,17 @@ def build_app(cfg: Config, pub: Publisher, hm: HookManager) -> FastAPI:
         return resp
 
     @app.post("/v1/anchor/quality", response_model=QualityResponse)
-    def measure_quality(req: QualityRequest):
+    def measure_quality(req: QualityRequest, request: Request):
+        tc = _extract_tc(request, req)
         sigma = req.noise_sigma if req.noise_sigma > 0 else cfg.noise.default_sigma
-        return mon.estimate(sigma, req.embedding_pairs)
+        resp = mon.estimate(sigma, req.embedding_pairs)
+        pub.publish(event_quality_estimated(tc, sigma, resp.recall_with, resp.status))
+        hm.fire(HookEvent(
+            type=EVENT_QUALITY_ESTIMATED, tenant_id=tc.tenant_id,
+            trace_id=tc.trace_id, span_id=tc.span_id,
+            data={"sigma": sigma, "recall": resp.recall_with, "status": resp.status},
+        ))
+        return resp
 
     @app.get("/v1/anchor/config", response_model=AnchorConfig)
     def get_config():
@@ -194,11 +220,28 @@ def build_app(cfg: Config, pub: Publisher, hm: HookManager) -> FastAPI:
         return verify_response(req, request)
 
     @app.post("/v1/anchor/analyze/embedding", response_model=EmbeddingAnalysisResponse)
-    def analyze_embedding(req: EmbeddingAnalysisRequest):
-        return ver.analyze_embedding(req)
+    def analyze_embedding(req: EmbeddingAnalysisRequest, request: Request):
+        tc = _extract_tc(request, req)
+        resp = ver.analyze_embedding(req)
+        avg_sim = sum(resp.similarities) / len(resp.similarities) if resp.similarities else 0.0
+        pub.publish(event_embedding_analyzed(tc, avg_sim, resp.diversity))
+        hm.fire(HookEvent(
+            type=EVENT_EMBEDDING_ANALYZED, tenant_id=tc.tenant_id,
+            trace_id=tc.trace_id, span_id=tc.span_id,
+            data={"avg_similarity": avg_sim, "diversity": resp.diversity},
+        ))
+        return resp
 
     @app.post("/v1/anchor/drift", response_model=DriftResponse)
-    def check_drift(req: DriftRequest):
-        return ver.check_drift(req)
+    def check_drift(req: DriftRequest, request: Request):
+        tc = _extract_tc(request, req)
+        resp = ver.check_drift(req)
+        pub.publish(event_drift_checked(tc, resp.drift_detected, float(len(resp.drifts))))
+        hm.fire(HookEvent(
+            type=EVENT_DRIFT_CHECKED, tenant_id=tc.tenant_id,
+            trace_id=tc.trace_id, span_id=tc.span_id,
+            data={"drift_detected": resp.drift_detected, "severity": resp.severity},
+        ))
+        return resp
 
     return app
