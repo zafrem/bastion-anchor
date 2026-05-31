@@ -30,6 +30,10 @@ When the LLM generates a response:
 - [Output SRS (Output Phase)](docs/bastion_anchor_output_srs_v1.0_en.md)
 - [Technical Guide](docs/TECHNICAL_GUIDE.md)
 
+**Technical deep-dives (code-based):**
+- [Embedding Noise Injection](docs/embedding-noise-injection.md)
+- [Embedding Model Bias Verification](docs/embedding-bias-verification.md)
+
 ## Getting Started
 ### Prerequisites
 - Go 1.26.2+
