@@ -38,7 +38,7 @@ For LLM outputs, Anchor uses a multi-faceted approach:
 ## 4. Operational Modes
 
 ### Server Mode
-Run as a microservice within the Bastion framework:
+Run as a microservice within the Bastion-RAG framework:
 ```bash
 $ anchor-cli server
 ```

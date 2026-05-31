@@ -2,7 +2,7 @@
 
 ## 1. Introduction
 
-**Bastion-Anchor** (Module E) is the embedding security layer of the Bastion RAG Security Governance Framework. It provides protection against embedding-based attacks and bias issues in vector representations, ensuring that the retrieval-augmented generation pipeline remains secure, private, and fair.
+**Bastion-Anchor** (Module E) is the embedding security layer of the Bastion-RAG Security Governance Framework. It provides protection against embedding-based attacks and bias issues in vector representations, ensuring that the retrieval-augmented generation pipeline remains secure, private, and fair.
 
 ### 1.1 Goals
 - **Privacy:** Protect embeddings from inversion attacks using noise injection.
@@ -116,7 +116,7 @@ Verifies the final LLM response produced by the RAG pipeline.
 ## 5. API Design
 
 ### 5.1 gRPC Interface (`proto/anchor/v1/anchor.proto`)
-Standard interface for high-performance internal communication within the Bastion framework.
+Standard interface for high-performance internal communication within the Bastion-RAG framework.
 - `SecureEmbedding`: Single vector noise injection.
 - `SecureBatch`: Batch vector noise injection.
 - `MeasureBias`: WEAT analysis.

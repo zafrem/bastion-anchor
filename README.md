@@ -35,4 +35,4 @@ When the LLM generates a response:
 - Go 1.26.2+
 
 ## Integration
-Anchor follows the Bastion standard gRPC and REST patterns, typically sitting between Module C (Navigator) and the LLM, and feeding metrics to Module D (Tracker).
+Anchor follows the Bastion-RAG standard gRPC and REST patterns, typically sitting between Module C (Navigator) and the LLM, and feeding metrics to Module D (Tracker).
