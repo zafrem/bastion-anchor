@@ -71,3 +71,4 @@ logs/
 *.local.yaml
 *.local.env
 secrets.yaml
+CLAUDE.md
