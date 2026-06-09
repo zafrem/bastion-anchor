@@ -38,13 +38,16 @@ def main() -> None:
     )
     grpc_thread.start()
 
-    # REST server runs in the main thread (blocks)
+    # REST server runs in the main thread (blocks).
+    # NOTE: uvicorn only honours workers>1 when given an import string, but the
+    # app is built in-process with live state (publisher, hooks, gRPC thread),
+    # so it must run single-worker. cfg.server.workers is intentionally ignored
+    # here (matching the navigator module); scale out with multiple processes.
     app = build_app(cfg, pub, hm)
     uvicorn.run(
         app,
         host="0.0.0.0",
         port=cfg.server.rest_port,
-        workers=cfg.server.workers,
         log_level="info",
     )
 
