@@ -35,8 +35,35 @@ When the LLM generates a response:
 - [Embedding Model Bias Verification](docs/embedding-bias-verification.md)
 
 ## Getting Started
+
+Anchor is a **Python / FastAPI** service.
+
 ### Prerequisites
-- Go 1.26.2+
+- Python 3.11+
+- (Optional) NATS for event streaming — Anchor runs without it (events are disabled and logged as a warning)
+
+### Install
+```bash
+make install          # = pip install -e .
+```
+Using a virtual environment is recommended (`python -m venv .venv && . .venv/bin/activate`).
+
+### Run
+```bash
+make run              # = python -m anchor.main --config config/config.yaml
+```
+Anchor starts the REST API on **:8083** and gRPC on **:9093**.
+
+### Development
+- `make test`   — pytest suite
+- `make lint`   — ruff check
+- `make format` — ruff format
+
+## API Interfaces
+- **REST API:** `:8083` — `/v1/anchor/secure`, `/v1/anchor/verify`, `/v1/anchor/bias`, `/v1/anchor/quality`, `/v1/anchor/drift`
+- **gRPC:** `:9093`
+- **Health:** `GET /v1/health`
+- **Metrics:** Prometheus at `GET /v1/metrics`
 
 ## Integration
 Anchor follows the Bastion-RAG standard gRPC and REST patterns, typically sitting between Module C (Navigator) and the LLM, and feeding metrics to Module D (Tracker).
