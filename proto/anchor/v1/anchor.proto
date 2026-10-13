@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package bastion.anchor.v1;
 
-option go_package = "github.com/bastion/anchor/gen/anchor/v1;anchorv1";
+option go_package = "github.com/zafrem/bastion-anchor/gen/anchor/v1;anchorv1";
 
 service AnchorService {
   rpc SecureEmbedding(SecureRequest)          returns (SecureResponse);
