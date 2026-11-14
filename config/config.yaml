@@ -4,6 +4,10 @@ server:
   rest_port: 8083
   grpc_port: 9093
   workers: 4
+  # Shared bearer token callers must present on REST and gRPC (or set ANCHOR_AUTH_TOKEN).
+  # Required: Anchor refuses to start without it unless allow_unauthenticated is set.
+  auth_token: ""
+  allow_unauthenticated: false    # development only: start with no token and accept unauthenticated callers
   # gRPC TLS (PEM files, re-read when they change so rotation needs no restart). Set cert + key to serve
   # gRPC over TLS; add client_ca to require client certificates (mutual TLS). Empty = plaintext.
   # Try it locally: scripts/gen-dev-certs.sh

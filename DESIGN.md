@@ -17,7 +17,7 @@ For implementation details and algorithms, see the [Technical Guide](docs/TECHNI
 
 ## 2. Architecture
 
-Anchor is a Go-based microservice that sits between the search engine (Navigator) and the LLM. It exposes gRPC and REST APIs and includes a CLI for manual operations.
+Anchor is a Python/FastAPI and gRPC microservice that sits between the search engine (Navigator) and the LLM. It exposes gRPC (`:9093`) and REST (`:8083`) APIs protected by bearer-token authentication and optional gRPC TLS/mTLS.
 
 ### 2.1 Component Diagram
 

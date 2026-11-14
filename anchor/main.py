@@ -24,6 +24,12 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = Config.load(args.config)
+    try:
+        cfg.validate_security()
+    except ValueError as exc:
+        raise SystemExit(f"refusing to start: {exc}")
+    if not cfg.server.auth_token and cfg.server.allow_unauthenticated:
+        log.warning("[security] server.allow_unauthenticated is enabled: callers are not authenticated — do not use in production")
     log.info("[anchor] starting v%s (REST :%d, gRPC :%d)", cfg.version, cfg.server.rest_port, cfg.server.grpc_port)
 
     pub = Publisher(cfg.events.nats_url)

@@ -50,9 +50,12 @@ Using a virtual environment is recommended (`python -m venv .venv && . .venv/bin
 
 ### Run
 ```bash
+export ANCHOR_AUTH_TOKEN=$(openssl rand -hex 32)
 make run              # = python -m anchor.main --config config/config.yaml
 ```
 Anchor starts the REST API on **:8083** and gRPC on **:9093**.
+
+**Caller authentication.** Anchor governs per-tenant noise levels and runtime configuration, so it refuses to start without `server.auth_token` (or the `ANCHOR_AUTH_TOKEN` environment variable) unless `server.allow_unauthenticated: true` is set (development only). With a token configured, all REST and gRPC calls except `/v1/health*`, `/v1/metrics`, and the gRPC `Health` RPC require `Authorization: Bearer <token>`.
 
 **gRPC TLS.** The gRPC port is plaintext by default. Set `server.grpc_tls_cert` and `server.grpc_tls_key` (PEM files) to serve it over TLS, and `server.grpc_tls_client_ca` to require client certificates (mutual TLS). The files are re-read when they change, so rotation needs no restart; a half-set or unusable configuration makes Anchor refuse to start. `scripts/gen-dev-certs.sh` (repository root) creates development certificates.
 

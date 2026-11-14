@@ -9,6 +9,7 @@ from typing import Any
 
 import grpc
 
+from .auth import GrpcAuthInterceptor, resolve_token
 from .config import Config
 from .tls import server_credentials
 from .noise import NoiseInjector
@@ -221,6 +222,7 @@ class _Empty:
 class GRPCServer:
     def __init__(self, cfg: Config, pub: Publisher, hm: HookManager) -> None:
         self._handler = _AnchorServiceHandler(cfg, pub, hm)
+        self._auth_token = resolve_token(cfg.server.auth_token)
         # Raises TLSConfigError for incomplete or unusable TLS settings (caught by main at startup).
         self._creds = server_credentials(
             cfg.server.grpc_tls_cert, cfg.server.grpc_tls_key, cfg.server.grpc_tls_client_ca
@@ -234,21 +236,28 @@ class GRPCServer:
         return self._creds is not None
 
     def _make_server(self) -> grpc.Server:
-        """Build the server (not started) with its handlers."""
+        """Build the server (not started) with its handlers and caller-authentication interceptor."""
+        interceptors = [GrpcAuthInterceptor(self._auth_token)] if self._auth_token else []
         server = grpc.server(
             futures.ThreadPoolExecutor(max_workers=10),
+            interceptors=interceptors,
             options=[
                 ("grpc.max_receive_message_length", 16 * 1024 * 1024),
                 ("grpc.max_send_message_length", 16 * 1024 * 1024),
             ],
         )
         server.add_generic_rpc_handlers([self._handler])
+        if not self._auth_token:
+            log.warning("[grpc] no auth token configured: the gRPC API accepts unauthenticated callers")
         return server
 
     def _add_port(self, server: grpc.Server, address: str) -> int:
         """Bind ``address``, over TLS when configured; returns the bound port."""
         if self._creds is not None:
             return server.add_secure_port(address, self._creds)
+        if self._auth_token:
+            log.warning("[grpc] plaintext but a bearer token is required: the token travels unencrypted; "
+                        "set server.grpc_tls_cert/grpc_tls_key, or terminate TLS in front of the gRPC port")
         return server.add_insecure_port(address)
 
     def serve(self, port: int) -> None:

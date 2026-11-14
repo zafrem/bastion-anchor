@@ -3,11 +3,18 @@ from __future__ import annotations
 import yaml
 from pydantic import BaseModel, Field
 
+from .auth import resolve_token
+
 
 class ServerConfig(BaseModel):
     rest_port: int = 8083
     grpc_port: int = 9093
     workers: int = 4
+    # Shared bearer token callers must present on REST and gRPC (or env ANCHOR_AUTH_TOKEN).
+    # Required: Anchor refuses to start without it unless allow_unauthenticated is set.
+    auth_token: str = ""
+    # Development only: start with no auth token and accept unauthenticated callers.
+    allow_unauthenticated: bool = False
     # gRPC TLS: PEM files. Set cert + key to serve gRPC over TLS (files are re-read when they change, so
     # rotation needs no restart); add client_ca to require client certificates (mutual TLS). Empty = plaintext.
     grpc_tls_cert: str = ""
@@ -59,3 +66,12 @@ class Config(BaseModel):
             return cls.model_validate(data or {})
         except FileNotFoundError:
             return cls()
+
+    def validate_security(self) -> None:
+        """Refuse configurations that accept unauthenticated callers without an explicit dev opt-in."""
+        if not resolve_token(self.server.auth_token) and not self.server.allow_unauthenticated:
+            raise ValueError(
+                "server.auth_token (or ANCHOR_AUTH_TOKEN) is required: Anchor governs per-tenant "
+                "embedding noise and runtime config, so it must authenticate its callers. For local "
+                "development only, set server.allow_unauthenticated: true"
+            )

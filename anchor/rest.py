@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from starlette.responses import Response
 
+from .auth import PUBLIC_REST_PATHS, resolve_token, token_matches
 from .config import Config
 from .noise import NoiseInjector
 from .bias import BiasAnalyzer
@@ -60,6 +61,22 @@ def _extract_tc(request: Request, req_body=None) -> TraceContext:
 def build_app(cfg: Config, pub: Publisher, hm: HookManager) -> FastAPI:
     app = FastAPI(title="Bastion Anchor", version="2.0.0")
 
+    # ── caller authentication ──────────────────────────────────────────────
+    auth_token = resolve_token(cfg.server.auth_token)
+    if auth_token:
+        @app.middleware("http")
+        async def require_bearer_token(request: Request, call_next):
+            if request.url.path in PUBLIC_REST_PATHS or token_matches(request.headers.get("authorization"), auth_token):
+                return await call_next(request)
+            return JSONResponse(
+                {"detail": "missing or invalid bearer token"},
+                status_code=401,
+                headers={"WWW-Authenticate": 'Bearer realm="anchor"'},
+            )
+    else:
+        log.warning("[anchor] no auth token configured (server.auth_token / ANCHOR_AUTH_TOKEN): "
+                    "the REST API accepts unauthenticated callers")
+
     inj = NoiseInjector(cfg.noise.default_sigma, cfg.noise.preserve_norm, cfg.noise.strategy)
     ana = BiasAnalyzer(cfg.bias.medium_threshold, cfg.bias.high_threshold, cfg.bias.dims)
     mon = QualityMonitor(cfg.quality.recall_drop_alert, cfg.quality.similarity_minimum)
@@ -79,6 +96,14 @@ def build_app(cfg: Config, pub: Publisher, hm: HookManager) -> FastAPI:
     @app.get("/v1/health")
     def health():
         return HealthStatus(status="ok", checks={"service": "up"})
+
+    @app.get("/v1/health/live")
+    def live():
+        return {"status": "alive"}
+
+    @app.get("/v1/health/ready")
+    def ready():
+        return {"status": "ready"}
 
     @app.get("/v1/metrics")
     def prometheus_metrics():
