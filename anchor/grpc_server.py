@@ -10,6 +10,7 @@ from typing import Any
 import grpc
 
 from .config import Config
+from .tls import server_credentials
 from .noise import NoiseInjector
 from .bias import BiasAnalyzer
 from .quality import QualityMonitor
@@ -220,11 +221,20 @@ class _Empty:
 class GRPCServer:
     def __init__(self, cfg: Config, pub: Publisher, hm: HookManager) -> None:
         self._handler = _AnchorServiceHandler(cfg, pub, hm)
+        # Raises TLSConfigError for incomplete or unusable TLS settings (caught by main at startup).
+        self._creds = server_credentials(
+            cfg.server.grpc_tls_cert, cfg.server.grpc_tls_key, cfg.server.grpc_tls_client_ca
+        )
 
     def hooks(self) -> HookManager:
         return self._handler._hm
 
-    def serve(self, port: int) -> None:
+    @property
+    def tls_enabled(self) -> bool:
+        return self._creds is not None
+
+    def _make_server(self) -> grpc.Server:
+        """Build the server (not started) with its handlers."""
         server = grpc.server(
             futures.ThreadPoolExecutor(max_workers=10),
             options=[
@@ -233,7 +243,17 @@ class GRPCServer:
             ],
         )
         server.add_generic_rpc_handlers([self._handler])
-        server.add_insecure_port(f"[::]:{port}")
-        log.info("[grpc] anchor listening on :%d", port)
+        return server
+
+    def _add_port(self, server: grpc.Server, address: str) -> int:
+        """Bind ``address``, over TLS when configured; returns the bound port."""
+        if self._creds is not None:
+            return server.add_secure_port(address, self._creds)
+        return server.add_insecure_port(address)
+
+    def serve(self, port: int) -> None:
+        server = self._make_server()
+        self._add_port(server, f"[::]:{port}")
+        log.info("[grpc] anchor listening on :%d (%s)", port, "TLS" if self.tls_enabled else "plaintext")
         server.start()
         server.wait_for_termination()

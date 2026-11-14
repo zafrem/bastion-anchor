@@ -4,6 +4,12 @@ server:
   rest_port: 8083
   grpc_port: 9093
   workers: 4
+  # gRPC TLS (PEM files, re-read when they change so rotation needs no restart). Set cert + key to serve
+  # gRPC over TLS; add client_ca to require client certificates (mutual TLS). Empty = plaintext.
+  # Try it locally: scripts/gen-dev-certs.sh
+  # grpc_tls_cert: ""
+  # grpc_tls_key: ""
+  # grpc_tls_client_ca: ""
 
 noise:
   default_sigma: 0.01

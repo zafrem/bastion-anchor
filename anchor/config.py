@@ -8,6 +8,11 @@ class ServerConfig(BaseModel):
     rest_port: int = 8083
     grpc_port: int = 9093
     workers: int = 4
+    # gRPC TLS: PEM files. Set cert + key to serve gRPC over TLS (files are re-read when they change, so
+    # rotation needs no restart); add client_ca to require client certificates (mutual TLS). Empty = plaintext.
+    grpc_tls_cert: str = ""
+    grpc_tls_key: str = ""
+    grpc_tls_client_ca: str = ""
 
 
 class NoiseConfig(BaseModel):

@@ -12,6 +12,7 @@ from .events import Publisher
 from .hooks import HookManager
 from .rest import build_app
 from .grpc_server import GRPCServer
+from .tls import TLSConfigError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger(__name__)
@@ -29,7 +30,10 @@ def main() -> None:
     hm = HookManager()
 
     # gRPC server runs in a background thread
-    grpc_srv = GRPCServer(cfg, pub, hm)
+    try:
+        grpc_srv = GRPCServer(cfg, pub, hm)
+    except TLSConfigError as exc:
+        raise SystemExit(f"refusing to start: gRPC TLS: {exc}")
     grpc_thread = threading.Thread(
         target=grpc_srv.serve,
         args=(cfg.server.grpc_port,),

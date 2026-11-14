@@ -54,6 +54,8 @@ make run              # = python -m anchor.main --config config/config.yaml
 ```
 Anchor starts the REST API on **:8083** and gRPC on **:9093**.
 
+**gRPC TLS.** The gRPC port is plaintext by default. Set `server.grpc_tls_cert` and `server.grpc_tls_key` (PEM files) to serve it over TLS, and `server.grpc_tls_client_ca` to require client certificates (mutual TLS). The files are re-read when they change, so rotation needs no restart; a half-set or unusable configuration makes Anchor refuse to start. `scripts/gen-dev-certs.sh` (repository root) creates development certificates.
+
 ### Development
 - `make test`   — pytest suite
 - `make lint`   — ruff check
