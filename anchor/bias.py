@@ -69,7 +69,7 @@ class BiasAnalyzer:
                 attr_b = self._get_or_random(pair.attribute_b, word_embeddings)
                 sim_a = cosine_similarity(word_emb, attr_a)
                 sim_b = cosine_similarity(word_emb, attr_b)
-                score = abs(sim_a - sim_b)
+                score = min(1.0, abs(sim_a - sim_b))
                 measurements.append(BiasMeasurement(
                     word=word,
                     category=pair.category,
