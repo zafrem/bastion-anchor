@@ -146,3 +146,27 @@ def test_the_shipped_sample_config_requires_the_operator_to_provide_a_token(monk
     assert cfg.server.auth_token == "" and cfg.server.allow_unauthenticated is False
     with pytest.raises(ValueError):
         cfg.validate_security()
+
+
+def test_denied_streaming_methods_are_rejected_with_matching_cardinality():
+    import grpc
+    from collections import namedtuple
+
+    from anchor.auth import GrpcAuthInterceptor
+
+    Details = namedtuple("Details", "method invocation_metadata")
+    real = {
+        "unary": grpc.unary_unary_rpc_method_handler(lambda r, c: r),
+        "server_stream": grpc.unary_stream_rpc_method_handler(lambda r, c: iter(())),
+        "client_stream": grpc.stream_unary_rpc_method_handler(lambda r, c: None),
+        "bidi": grpc.stream_stream_rpc_method_handler(lambda r, c: iter(())),
+    }
+    interceptor = GrpcAuthInterceptor("secret-token")
+    for name, handler in real.items():
+        denied = interceptor.intercept_service(lambda _d, h=handler: h, Details("/x.Svc/M", ()))
+        assert denied is not handler, name
+        assert (denied.request_streaming, denied.response_streaming) == (
+            handler.request_streaming, handler.response_streaming), name
+        allowed = interceptor.intercept_service(
+            lambda _d, h=handler: h, Details("/x.Svc/M", (("authorization", "Bearer secret-token"),)))
+        assert allowed is handler, name

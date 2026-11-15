@@ -38,16 +38,28 @@ class GrpcAuthInterceptor(grpc.ServerInterceptor):
 
     def __init__(self, token: str) -> None:
         self._token = token
-        self._deny = grpc.unary_unary_rpc_method_handler(self._abort)
 
     @staticmethod
     def _abort(_request, context):
         context.abort(grpc.StatusCode.UNAUTHENTICATED, "missing or invalid bearer token")
 
+    @classmethod
+    def _deny_like(cls, handler):
+        """A handler that rejects with UNAUTHENTICATED but has the same cardinality as ``handler``,
+        so unary and streaming methods are all refused with the proper status."""
+        if handler is None or (not handler.request_streaming and not handler.response_streaming):
+            return grpc.unary_unary_rpc_method_handler(cls._abort)
+        if not handler.request_streaming:
+            return grpc.unary_stream_rpc_method_handler(cls._abort)
+        if not handler.response_streaming:
+            return grpc.stream_unary_rpc_method_handler(cls._abort)
+        return grpc.stream_stream_rpc_method_handler(cls._abort)
+
     def intercept_service(self, continuation, handler_call_details):
+        handler = continuation(handler_call_details)
         if not self._token or handler_call_details.method in PUBLIC_GRPC_METHODS:
-            return continuation(handler_call_details)
+            return handler
         for key, value in handler_call_details.invocation_metadata or ():
             if key.lower() == "authorization" and token_matches(value, self._token):
-                return continuation(handler_call_details)
-        return self._deny
+                return handler
+        return self._deny_like(handler)
