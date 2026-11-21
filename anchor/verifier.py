@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import re
 import string
 import time
 import unicodedata
@@ -62,8 +63,42 @@ _BIAS_PATTERNS: dict[str, list[str]] = {
 }
 
 
+# Stereotype shapes: a group, a generalising verb, then a negative trait. Each needs all three,
+# so neutral text that merely names a group does not match. They complement the fixed phrases above.
+_BIAS_REGEX: dict[str, list["re.Pattern[str]"]] = {
+    "gender": [re.compile(p, re.I) for p in (
+        r"\b(women|girls|females?|men|boys|males?)\s+(are|is|can'?t|cannot|aren'?t)\s+(just\s+|naturally\s+|simply\s+|too\s+|not\s+)?(emotional|irrational|weak|bossy|hysterical|less\s+capable|more\s+capable|better\s+leaders|worse\s+leaders|suited|fit)\b",
+        r"\b(women|girls|females?)\s+(should\s+(not|never|stay)|belong\s+in)\b",
+    )],
+    "age": [re.compile(p, re.I) for p in (
+        r"\b(older|old|elderly|aged|senior)\s+(workers|people|employees|staff|adults|persons)\s+(cannot|can'?t|can\s+not|are\s+(too\s+|all\s+)?(slow|incapable|unable|useless|obsolete|set\s+in))",
+        r"\b(young|younger)\s+(workers|people|employees|staff|adults)\s+(are|don'?t|cannot|can'?t)\s+(all\s+)?(lazy|irresponsible|entitled|know|understand)",
+        r"\btoo\s+(old|young)\s+to\b",
+    )],
+    "ethnicity": [re.compile(p, re.I) for p in (
+        r"\b(people\s+from\s+(that|those|this|these)\s+\w+|immigrants|foreigners|those\s+people|these\s+people)\s+(are|can'?t|cannot|don'?t)\s+(all\s+|just\s+)?(lazy|untrustworthy|dishonest|criminals?|stupid|dirty|dangerous|violent|understand|work)\b",
+    )],
+}
+
+# A group needs at least this many mentions before an imbalance between two sides means anything.
+# One mention of "women" is a fact about the text, not bias.
+_MIN_MENTIONS_FOR_IMBALANCE = 4
+
+_WORD = re.compile(r"[\w']+", re.UNICODE)
+
+
 def _tokenize(text: str) -> list[str]:
-    return text.split()
+    # Words without surrounding punctuation ("women." is "women"). Korean particles attach to the
+    # noun (남성은), so a Korean token also counts when it starts with a listed term.
+    return _WORD.findall(text)
+
+
+def _count(tokens: list[str], group: frozenset) -> int:
+    n = 0
+    for t in tokens:
+        if t in group or (not t.isascii() and any(t.startswith(g) for g in group if not g.isascii())):
+            n += 1
+    return n
 
 
 def _word_set(tokens: list[str]) -> set[str]:
@@ -190,16 +225,21 @@ class Verifier:
         overall_max = 0.0
 
         for name, group_a, group_b in categories:
-            count_a = sum(1 for t in tokens if t in group_a)
-            count_b = sum(1 for t in tokens if t in group_b)
+            count_a = _count(tokens, group_a)
+            count_b = _count(tokens, group_b)
             total = count_a + count_b
-            score = abs(count_a - count_b) / total if total > 0 else 0.0
+            score = abs(count_a - count_b) / total if total >= _MIN_MENTIONS_FOR_IMBALANCE else 0.0
 
             evidence: list[str] = []
             for pat in _BIAS_PATTERNS.get(name, []):
                 if pat in lower:
                     score = max(score, 0.4)
                     evidence.append(pat)
+            for rx in _BIAS_REGEX.get(name, []):
+                m = rx.search(text)
+                if m:
+                    score = max(score, 0.4)
+                    evidence.append(m.group(0))
 
             # A scoped exception drops this category from the analysis. It is only
             # recorded as used when the category actually showed bias.
