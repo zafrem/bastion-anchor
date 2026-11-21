@@ -47,6 +47,16 @@ class EventsConfig(BaseModel):
     enabled: bool = True
 
 
+class ExceptionsConfig(BaseModel):
+    """Scoped exceptions signed by Tracker. Off unless a public key is set (env ANCHOR_EXCEPTIONS_PUBLIC_KEY).
+
+    Several comma-separated keys are accepted while a key is rotated. ``file`` is where verified
+    exceptions are kept, so Anchor enforces from its own copy even when Tracker or NATS is down.
+    """
+    public_key: str = ""
+    file: str = ""
+
+
 class Config(BaseModel):
     version: str = "3.0"
     server: ServerConfig = Field(default_factory=ServerConfig)
@@ -54,6 +64,7 @@ class Config(BaseModel):
     bias: BiasConfig = Field(default_factory=BiasConfig)
     quality: QualityConfig = Field(default_factory=QualityConfig)
     events: EventsConfig = Field(default_factory=EventsConfig)
+    exceptions: ExceptionsConfig = Field(default_factory=ExceptionsConfig)
 
     def sigma_for_tenant(self, tenant_id: str) -> float:
         return self.noise.tenant_overrides.get(tenant_id, self.noise.default_sigma)

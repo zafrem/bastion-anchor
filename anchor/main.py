@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import threading
 
 import uvicorn
 
 from .config import Config
 from .events import Publisher
+from .exceptions import Client as ExceptionsClient, ExceptionsError
+from .verifier import set_exceptions
 from .hooks import HookManager
 from .rest import build_app
 from .grpc_server import GRPCServer
@@ -34,6 +37,19 @@ def main() -> None:
 
     pub = Publisher(cfg.events.nats_url)
     hm = HookManager()
+
+    # Scoped exceptions: verified against Tracker's public key and kept in a local file, so Anchor
+    # enforces from its own copy and keeps working with Tracker or NATS down. No key = feature off.
+    pub_keys = os.environ.get("ANCHOR_EXCEPTIONS_PUBLIC_KEY", cfg.exceptions.public_key)
+    exc_file = cfg.exceptions.file or ("anchor-exceptions.json" if pub_keys else "")
+    try:
+        exc_client = ExceptionsClient("anchor", pub_keys, exc_file)
+    except ExceptionsError as exc:
+        raise SystemExit(f"refusing to start: exceptions: {exc}")
+    if exc_client.enabled:
+        set_exceptions(exc_client)
+        exc_client.start(cfg.events.nats_url)
+        log.info("[anchor] scoped exceptions enabled (file %s)", exc_file)
 
     # gRPC server runs in a background thread
     try:

@@ -203,6 +203,8 @@ class VerifyResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
     processing_time_ms: float = 0.0
+    # IDs of scoped exceptions that exempted a bias category on this request.
+    exceptions_applied: list[str] = Field(default_factory=list)
 
 
 class EmbeddingAnalysisRequest(BaseModel):

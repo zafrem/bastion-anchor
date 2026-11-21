@@ -19,6 +19,7 @@ from .events import (
     Publisher, TraceContext,
     event_embedding_secured, event_bias_detected, event_response_verified, event_anomaly_detected,
     event_batch_secured, event_quality_estimated, event_embedding_analyzed, event_drift_checked,
+    event_exception_applied,
 )
 from .hooks import (
     HookManager, HookEvent,
@@ -225,6 +226,8 @@ def build_app(cfg: Config, pub: Publisher, hm: HookManager) -> FastAPI:
         tc = _extract_tc(request, req)
         bias_score_val = resp.bias_analysis.overall_score if resp.bias_analysis else 0.0
         pub.publish(event_response_verified(tc, resp.status, bias_score_val))
+        if resp.exceptions_applied:
+            pub.publish(event_exception_applied(tc, resp.exceptions_applied))
         hm.fire(HookEvent(
             type=EVENT_RESPONSE_VERIFIED, tenant_id=req.tenant_id,
             trace_id=tc.trace_id, span_id=tc.span_id, request_id=req.request_id,

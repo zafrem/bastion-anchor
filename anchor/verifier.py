@@ -5,8 +5,9 @@ import math
 import string
 import time
 import unicodedata
-from typing import Optional
+from typing import Callable, Optional
 
+from .exceptions import Client as ExceptionsClient
 from .models import (
     BiasBaseline,
     CategoryDrift,
@@ -78,6 +79,15 @@ def _jaccard(a: list[str], b: list[str]) -> float:
     return inter / union if union > 0 else 0.0
 
 
+# Process-wide scoped-exception store (set at startup). None = nothing is exempted.
+_exceptions: Optional[ExceptionsClient] = None
+
+
+def set_exceptions(client: Optional[ExceptionsClient]) -> None:
+    global _exceptions
+    _exceptions = client
+
+
 class Verifier:
     def __init__(self, medium_threshold: float = 0.15, high_threshold: float = 0.25) -> None:
         self.medium_threshold = medium_threshold
@@ -95,7 +105,15 @@ class Verifier:
         bias_anal: Optional[ResponseBiasAnalysis] = None
 
         if run_all or (opts and opts.check_bias):
-            bias_anal = self._detect_bias(req.llm_response, bias_threshold)
+            tenant = req.tenant_id or (req.user.tenant_id if req.user else "")
+            user = req.user.user_id if req.user else ""
+            client = _exceptions
+
+            def exempt(category: str) -> Optional[str]:
+                # Rule "anchor.bias:<category>" exempts one bias category for one tenant.
+                return client.allowed(f"anchor.bias:{category}", tenant, user) if client else None
+
+            bias_anal = self._detect_bias(req.llm_response, bias_threshold, exempt, resp.exceptions_applied)
             resp.bias_analysis = bias_anal
 
         if run_all or (opts and opts.analyze_embedding):
@@ -153,7 +171,13 @@ class Verifier:
 
     # ── bias detection ────────────────────────────────────────────────────────
 
-    def _detect_bias(self, text: str, threshold: float) -> ResponseBiasAnalysis:
+    def _detect_bias(
+        self,
+        text: str,
+        threshold: float,
+        exempt: Optional[Callable[[str], Optional[str]]] = None,
+        applied: Optional[list[str]] = None,
+    ) -> ResponseBiasAnalysis:
         lower = text.lower()
         tokens = _tokenize(lower)
 
@@ -176,6 +200,15 @@ class Verifier:
                 if pat in lower:
                     score = max(score, 0.4)
                     evidence.append(pat)
+
+            # A scoped exception drops this category from the analysis. It is only
+            # recorded as used when the category actually showed bias.
+            if (score > 0 or evidence) and exempt is not None:
+                exc_id = exempt(name)
+                if exc_id:
+                    if applied is not None and exc_id not in applied:
+                        applied.append(exc_id)
+                    continue
 
             if score > 0 or evidence:
                 cat_bias.append(ResponseCategoryBias(category=name, score=score, evidence=evidence))

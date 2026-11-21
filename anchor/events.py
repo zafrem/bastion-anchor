@@ -87,6 +87,14 @@ def event_embedding_secured(tc: TraceContext, operation: str, noise_magnitude: f
     return ev
 
 
+def event_exception_applied(tc: TraceContext, exception_ids: list[str]) -> AnchorEvent:
+    """Emitted when a scoped exception exempted a check, so the audit trail shows every relaxation."""
+    ev = _new_event(tc, "exception_applied", "warning", "audit", {"exception_ids": exception_ids})
+    ev.status = "passed"
+    ev.action_taken = "exception_applied"
+    return ev
+
+
 def event_bias_detected(tc: TraceContext, category: str, score: float) -> AnchorEvent:
     ev = _new_event(tc, "bias_detected", "warning", "security", {
         "bias_category": category,
